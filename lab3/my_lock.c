@@ -15,6 +15,7 @@
 #define Size 64
 
 int P;
+int** timeRecord;
 
 typedef struct simplelock{
     volatile int lock_data;
@@ -98,7 +99,8 @@ GM *gm;
 
 void *benchmark(void* b){
     register int i, j, p, q;
-    register int pid, N, K, M;                                          
+    register int pid, N, K, M;      
+    struct timeval t0, t1, dt;                                    
     N = gm -> N;
     K = gm -> K;
     M = gm -> M;
@@ -109,14 +111,15 @@ void *benchmark(void* b){
 #ifdef QUEUE
     unsigned int que = 0;
 #endif
+    gettimeofday(&t0, NULL); 
     for(i = 0 ; i < N; i++)
     {
 //acquire
-#ifdef TS
+#ifdef TTS
         //printf("use TS\n");
         s_lock(gm -> lck);
 #endif
-#ifdef TTS
+#ifdef TS
         //printf("use TTS\n");
         t_s_lock(gm -> lck);
 #endif
@@ -129,10 +132,10 @@ void *benchmark(void* b){
         for(j = 0; j < K; j++)
             q++;
 //release
-#ifdef TS
+#ifdef TTS
         s_unlock(gm -> lck);
 #endif
-#ifdef TTS
+#ifdef TS
         t_s_unlock(gm -> lck);
 #endif
 #ifdef TICKET
@@ -144,6 +147,12 @@ void *benchmark(void* b){
         for(j = 0; j < M; j++)
             p++;
     }
+    gettimeofday(&t1, NULL);
+    timersub(&t1, &t0, &dt);
+    timeRecord[pid][0] = dt.tv_sec;
+    timeRecord[pid][1] = dt.tv_usec;
+    //fprintf(stderr, "doSomeThing (thread %ld) took %d.%06d sec\n",
+    //    (long)pthread_self(), dt.tv_sec, dt.tv_usec);
     gm -> a[pid] = p + q;
 }
 
@@ -170,12 +179,14 @@ int main(int argc, char **argv) {
     end = gm -> end = (unsigned int*)malloc(P * sizeof(unsigned int));
     pthread_t *threads = (pthread_t*)malloc(P * sizeof(threads));
     gm -> lck = (lock*)malloc(sizeof(lock));
-
+    timeRecord = (int**)malloc(P * sizeof(int*));
+    for(i = 0 ; i < P; i++)
+      timeRecord[i] = (int*)malloc(2 * sizeof(int));
 //init
-#ifdef TS
+#ifdef TTS
     s_lock_init(gm -> lck);
 #endif
-#ifdef TTS
+#ifdef TS
     t_s_lock_init(gm -> lck);
 #endif
 #ifdef TICKET
@@ -199,6 +210,7 @@ int main(int argc, char **argv) {
     for(i = 0; i < P; i++)
     {
         printf("sum[%d] = %d\n", i , gm -> a[i]);
+        printf("time consumin[%d] = %d.%06d sec\n", i, timeRecord[i][0], timeRecord[i][1]);
     }
     return 0;
 }
